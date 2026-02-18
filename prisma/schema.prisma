@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TRADER
+  MENTOR
+  ADMIN
+}
+
+enum Tier {
+  BASIC
+  PRO
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  emailVerified  DateTime?
+  image          String?
+  password       String?
+  role           Role      @default(TRADER)
+  tier           Tier      @default(BASIC)
+  
+  mentorId       String?
+  mentor         User?     @relation("MentorTraders", fields: [mentorId], references: [id])
+  traders        User[]    @relation("MentorTraders")
+
+  trades         Trade[]
+  journals       Journal[]
+  playbooks      Playbook[]
+  subscriptions  Subscription[]
+  notifications  Notification[]
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  accounts       Account[]
+  sessions       Session[]
+  messages       Message[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Trade {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  instrument      String
+  market          String   // NSE, BSE, FOREX, CRYPTO, US_FUTURES
+  direction       String   // LONG, SHORT
+  entryPrice      Float
+  exitPrice       Float
+  quantity        Float
+  stopLoss        Float?
+  takeProfit      Float?
+  fees            Float?
+  netPnl          Float    // Calculated
+  rrRatio         Float?   // Calculated
+  percentGainLoss Float?   // Calculated
+  
+  strategyId      String?
+  playbook        Playbook? @relation(fields: [strategyId], references: [id])
+  
+  setupRating     String?  // A+, A, B, C
+  emotionalState  String?
+  marketConditions String?
+  notes           String?
+  
+  entryDate       DateTime
+  exitDate        DateTime
+  
+  source          String   // MANUAL, CSV, API
+  
+  screenshots     TradeScreenshot[]
+  tags            TradeTag[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model TradeScreenshot {
+  id        String   @id @default(cuid())
+  tradeId   String
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  uploadedAt DateTime @default(now())
+}
+
+model TradeTag {
+  id        String @id @default(cuid())
+  tradeId   String
+  trade     Trade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  tagName   String
+}
+
+model Journal {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date      DateTime
+  title     String
+  content   String   @db.Text
+  tags      String[]
+  emotion   String?
+  type      String   @default("DAILY") // PRE_MARKET, POST_MARKET, WEEKLY, DAILY
+  rating    Int?
+  isShared  Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Playbook {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name            String
+  description     String?
+  market          String?
+  entryRules      String?
+  exitTp          String?
+  exitSl          String?
+  positionSizing  String?
+  riskRules       String?
+  tags            String[]
+  
+  trades          Trade[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  plan           Tier
+  status         String   // ACTIVE, CANCELLED, EXPIRED
+  startDate      DateTime
+  endDate        DateTime
+  paymentId      String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type      String
+  message   String
+  isRead    Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  channel   String   @default("general") // general, announcements, etc.
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
